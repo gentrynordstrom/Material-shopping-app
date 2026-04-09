@@ -22,6 +22,8 @@ module.exports = {
     },
   },
 
+  activeGroupName: process.env.ACTIVE_GROUP_NAME || 'Active Turns',
+
   columns: {
     itemTypeId: 'dropdown_mkw5qbj',
     materialValue: 'Material',

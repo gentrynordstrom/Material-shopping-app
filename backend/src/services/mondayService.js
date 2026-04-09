@@ -77,21 +77,47 @@ async function getSubitemBoardColumns() {
   return data.boards[0].columns;
 }
 
-async function getTurnovers() {
+async function getGroups() {
   const query = `query {
     boards(ids: [${config.boardId}]) {
-      items_page(limit: 500) {
-        items {
-          id
-          name
-          column_values {
+      groups {
+        id
+        title
+      }
+    }
+  }`;
+  const data = await mondayQuery(query);
+  return data.boards[0].groups;
+}
+
+async function getTurnovers() {
+  const groups = await getGroups();
+  const activeGroup = groups.find(
+    (g) => g.title.toLowerCase() === config.activeGroupName.toLowerCase()
+  );
+
+  if (!activeGroup) {
+    console.warn(`Group "${config.activeGroupName}" not found. Available groups:`,
+      groups.map((g) => g.title));
+    throw new Error(`Group "${config.activeGroupName}" not found on this board.`);
+  }
+
+  const query = `query {
+    boards(ids: [${config.boardId}]) {
+      groups(ids: ["${activeGroup.id}"]) {
+        items_page(limit: 500) {
+          items {
             id
-            text
-            value
-            type
-          }
-          subitems {
-            id
+            name
+            column_values {
+              id
+              text
+              value
+              type
+            }
+            subitems {
+              id
+            }
           }
         }
       }
@@ -99,7 +125,7 @@ async function getTurnovers() {
   }`;
 
   const data = await mondayQuery(query);
-  const items = data.boards[0].items_page.items;
+  const items = data.boards[0].groups[0].items_page.items;
 
   return items.map((item) => {
     const statusCol = item.column_values.find(
@@ -259,6 +285,7 @@ async function savePrice(subitemId, store, price, productUrl) {
 module.exports = {
   discoverSubitemBoardId,
   getSubitemBoardColumns,
+  getGroups,
   getTurnovers,
   getMaterials,
   updateSubitemColumn,

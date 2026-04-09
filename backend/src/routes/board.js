@@ -12,6 +12,16 @@ router.get('/columns', async (req, res) => {
   }
 });
 
+router.get('/groups', async (req, res) => {
+  try {
+    const groups = await mondayService.getGroups();
+    res.json(groups);
+  } catch (err) {
+    console.error('Error fetching groups:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/setup-price-columns', async (req, res) => {
   try {
     const result = await mondayService.ensurePriceColumns();
