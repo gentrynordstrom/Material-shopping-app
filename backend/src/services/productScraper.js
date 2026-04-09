@@ -45,29 +45,38 @@ function parseMenardsUrl(url) {
   const pidMatch = path.match(/p-(\d+)/);
   const productId = pidMatch ? pidMatch[1] : null;
 
-  // Extract product name from URL path segments
+  // Extract product name and SKU from URL path segments
+  // Menards URLs: /main/category/.../product-name-slug/model-number/p-XXXXX-c-YYYY.htm
   const segments = path.split('/').filter(Boolean);
-  // Usually the segment before p-XXXXX is the product name slug
   let nameSlug = '';
+  let skuSlug = '';
+
   for (let i = 0; i < segments.length; i++) {
-    if (segments[i].startsWith('p-')) {
-      nameSlug = segments[i - 1] || '';
+    if (segments[i].startsWith('p-') || segments[i].match(/^p-\d+/)) {
+      // The segment before p- is often the model number, the one before that is the name
+      skuSlug = segments[i - 1] || '';
+      // Pick the longest hyphenated segment before the model number as the product name
+      for (let j = i - 2; j >= 0; j--) {
+        if (segments[j].includes('-') && segments[j].length > nameSlug.length) {
+          nameSlug = segments[j];
+          break;
+        }
+      }
+      // If we didn't find a longer one, use the segment before the model
+      if (!nameSlug) nameSlug = skuSlug;
       break;
     }
   }
 
-  // Clean name: "product-name-slug" -> "Product Name Slug"
-  // Also strip trailing sku patterns like "-1234567"
   const name = nameSlug
     .replace(/-c-\d+.*$/, '')
     .replace(/-\d{5,}$/, '')
+    .replace(/-reg-/g, ' ')
     .replace(/-/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase())
     .trim();
 
-  // Try to extract SKU from URL or query params
-  const skuMatch = path.match(/sku[- ]?(\d+)/i);
-  const sku = skuMatch ? skuMatch[1] : null;
+  const sku = skuSlug && skuSlug !== nameSlug ? skuSlug.toUpperCase() : null;
 
   return {
     url,
