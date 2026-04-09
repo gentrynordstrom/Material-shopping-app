@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: material-shopping-api
+    runtime: node
+    region: ohio
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node src/server.js
+    envVars:
+      - key: MONDAY_API_TOKEN
+        sync: false
+      - key: BOARD_ID
+        value: "7288152041"
+      - key: NODE_ENV
+        value: production
