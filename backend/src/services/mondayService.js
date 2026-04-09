@@ -282,6 +282,36 @@ async function savePrice(subitemId, store, price, productUrl) {
   return { success: true };
 }
 
+async function saveProduct(subitemId, product) {
+  const subitemBoardId = await discoverSubitemBoardId();
+  const { store, price, url, name, sku } = product;
+  const priceColId = store === 'menards' ? 'menards_price' : 'hd_price';
+  const urlColId = store === 'menards' ? 'menards_url' : 'hd_url';
+
+  const colValues = { [priceColId]: price.toString() };
+
+  if (url) {
+    colValues[urlColId] = {
+      url,
+      text: name || (store === 'menards' ? 'Menards' : 'Home Depot'),
+    };
+  }
+
+  const value = JSON.stringify(JSON.stringify(colValues));
+  const query = `mutation {
+    change_multiple_column_values(
+      item_id: ${subitemId},
+      board_id: ${subitemBoardId},
+      column_values: ${value}
+    ) {
+      id
+    }
+  }`;
+  await mondayQuery(query);
+
+  return { success: true };
+}
+
 module.exports = {
   discoverSubitemBoardId,
   getSubitemBoardColumns,
@@ -291,4 +321,5 @@ module.exports = {
   updateSubitemColumn,
   ensurePriceColumns,
   savePrice,
+  saveProduct,
 };

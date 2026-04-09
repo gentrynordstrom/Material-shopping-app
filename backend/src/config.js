@@ -5,6 +5,7 @@ module.exports = {
   boardId: process.env.BOARD_ID || '7288152041',
   port: process.env.PORT || 3001,
   mondayApiUrl: 'https://api.monday.com/v2',
+  databaseUrl: process.env.DATABASE_URL,
 
   stores: {
     homedepot: {

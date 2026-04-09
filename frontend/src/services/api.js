@@ -38,3 +38,27 @@ export function fetchBoardColumns() {
 export function setupPriceColumns() {
   return request('/api/board/setup-price-columns', { method: 'POST' });
 }
+
+export function scrapeProduct(url) {
+  return request('/api/products/scrape', {
+    method: 'POST',
+    body: JSON.stringify({ url }),
+  });
+}
+
+export function saveProduct(materialId, product) {
+  return request(`/api/products/${materialId}/product`, {
+    method: 'PUT',
+    body: JSON.stringify(product),
+  });
+}
+
+export function searchCatalog(query, store) {
+  const params = new URLSearchParams({ q: query });
+  if (store) params.set('store', store);
+  return request(`/api/products/catalog/search?${params}`);
+}
+
+export function getCatalogSuggestions(materialName) {
+  return request(`/api/products/catalog/suggestions?material=${encodeURIComponent(materialName)}`);
+}

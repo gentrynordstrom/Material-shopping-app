@@ -4,11 +4,25 @@ import { fetchMaterials } from '../services/api';
 import Spinner from '../components/Spinner';
 import ErrorMessage from '../components/ErrorMessage';
 
+function getProductUrl(mat, store) {
+  const urlKey = store === 'menards' ? 'menards_url' : 'hd_url';
+  const colVal = mat.columnValues?.[urlKey];
+  if (!colVal) return null;
+  try {
+    const parsed = JSON.parse(colVal.value);
+    return parsed?.url || null;
+  } catch {
+    const text = colVal.text || '';
+    return text.startsWith('http') ? text : null;
+  }
+}
+
 export default function PriceComparison() {
   const { id } = useParams();
   const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [copyFeedback, setCopyFeedback] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -49,29 +63,17 @@ export default function PriceComparison() {
 
       if (hasM && hasH) {
         if (mp < hp) {
-          bestStore = 'menards';
-          bestPrice = mp;
-          savings = hp - mp;
-          menardsWins++;
+          bestStore = 'menards'; bestPrice = mp; savings = hp - mp; menardsWins++;
         } else if (hp < mp) {
-          bestStore = 'homedepot';
-          bestPrice = hp;
-          savings = mp - hp;
-          hdWins++;
+          bestStore = 'homedepot'; bestPrice = hp; savings = mp - hp; hdWins++;
         } else {
-          bestStore = 'tie';
-          bestPrice = mp;
-          ties++;
+          bestStore = 'tie'; bestPrice = mp; ties++;
         }
         bestMixTotal += bestPrice;
       } else if (hasM) {
-        bestStore = 'menards';
-        bestPrice = mp;
-        bestMixTotal += mp;
+        bestStore = 'menards'; bestPrice = mp; bestMixTotal += mp;
       } else if (hasH) {
-        bestStore = 'homedepot';
-        bestPrice = hp;
-        bestMixTotal += hp;
+        bestStore = 'homedepot'; bestPrice = hp; bestMixTotal += hp;
       } else {
         unpriced++;
       }
@@ -80,6 +82,8 @@ export default function PriceComparison() {
         ...m,
         menardsPrice: hasM ? mp : null,
         hdPrice: hasH ? hp : null,
+        menardsUrl: getProductUrl(m, 'menards'),
+        hdUrl: getProductUrl(m, 'homedepot'),
         bestStore,
         bestPrice,
         savings,
@@ -88,22 +92,38 @@ export default function PriceComparison() {
 
     return {
       items,
-      menardsTotal,
-      hdTotal,
-      bestMixTotal,
-      menardsWins,
-      hdWins,
-      ties,
-      unpriced,
+      menardsTotal, hdTotal, bestMixTotal,
+      menardsWins, hdWins, ties, unpriced,
       bestMixSavingsVsMenards: menardsTotal - bestMixTotal,
       bestMixSavingsVsHD: hdTotal - bestMixTotal,
     };
   }, [materials]);
 
+  const copyList = (store) => {
+    const storeLabel = store === 'menards' ? 'Menards' : 'Home Depot';
+    const items = analysis.items.filter(
+      (i) => i.bestStore === store || (store === 'menards' && i.bestStore === 'tie')
+    );
+    const lines = items.map(
+      (i) => `${i.name} - $${i.bestPrice.toFixed(2)}${i[`${store === 'menards' ? 'menards' : 'hd'}Url`] ? '\n  ' + i[`${store === 'menards' ? 'menards' : 'hd'}Url`] : ''}`
+    );
+    const text = `${storeLabel} Purchase List\n${'='.repeat(30)}\n${lines.join('\n')}\n\nTotal: $${items.reduce((s, i) => s + i.bestPrice, 0).toFixed(2)}`;
+
+    navigator.clipboard.writeText(text).then(() => {
+      setCopyFeedback(store);
+      setTimeout(() => setCopyFeedback(null), 2000);
+    });
+  };
+
   const handlePrint = () => window.print();
 
   if (loading) return <Spinner message="Building comparison..." />;
   if (error) return <ErrorMessage message={error} onRetry={load} />;
+
+  const menardsItems = analysis.items.filter(
+    (i) => i.bestStore === 'menards' || i.bestStore === 'tie'
+  );
+  const hdItems = analysis.items.filter((i) => i.bestStore === 'homedepot');
 
   return (
     <div className="page">
@@ -165,10 +185,22 @@ export default function PriceComparison() {
               <tr key={item.id}>
                 <td className="mat-name">{item.name}</td>
                 <td className={item.bestStore === 'menards' ? 'best-price' : ''}>
-                  {item.menardsPrice !== null ? `$${item.menardsPrice.toFixed(2)}` : '--'}
+                  {item.menardsPrice !== null ? (
+                    item.menardsUrl ? (
+                      <a href={item.menardsUrl} target="_blank" rel="noopener noreferrer" className="price-link">
+                        ${item.menardsPrice.toFixed(2)}
+                      </a>
+                    ) : `$${item.menardsPrice.toFixed(2)}`
+                  ) : '--'}
                 </td>
                 <td className={item.bestStore === 'homedepot' ? 'best-price' : ''}>
-                  {item.hdPrice !== null ? `$${item.hdPrice.toFixed(2)}` : '--'}
+                  {item.hdPrice !== null ? (
+                    item.hdUrl ? (
+                      <a href={item.hdUrl} target="_blank" rel="noopener noreferrer" className="price-link">
+                        ${item.hdPrice.toFixed(2)}
+                      </a>
+                    ) : `$${item.hdPrice.toFixed(2)}`
+                  ) : '--'}
                 </td>
                 <td className="best-price-cell">
                   {item.bestPrice !== null ? `$${item.bestPrice.toFixed(2)}` : '--'}
@@ -202,28 +234,81 @@ export default function PriceComparison() {
 
       <div className="purchase-lists">
         <div className="purchase-list">
-          <h3 className="menards-color">Buy from Menards</h3>
-          <ul>
-            {analysis.items
-              .filter((i) => i.bestStore === 'menards' || i.bestStore === 'tie')
-              .map((i) => (
-                <li key={i.id}>
-                  {i.name} &mdash; ${i.bestPrice.toFixed(2)}
-                </li>
+          <div className="purchase-list-header">
+            <h3 className="menards-color">Buy from Menards ({menardsItems.length})</h3>
+            <button
+              className="btn btn-sm btn-secondary"
+              onClick={() => copyList('menards')}
+            >
+              {copyFeedback === 'menards' ? 'Copied!' : 'Copy List'}
+            </button>
+          </div>
+          {menardsItems.length === 0 ? (
+            <p className="muted">No items assigned to Menards</p>
+          ) : (
+            <div className="purchase-items">
+              {menardsItems.map((item) => (
+                <div key={item.id} className="purchase-item">
+                  <div className="purchase-item-info">
+                    <span className="purchase-item-name">{item.name}</span>
+                    <span className="purchase-item-price">${item.bestPrice.toFixed(2)}</span>
+                  </div>
+                  {item.menardsUrl && (
+                    <a
+                      href={item.menardsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="purchase-item-link"
+                    >
+                      Open on Menards &rarr;
+                    </a>
+                  )}
+                </div>
               ))}
-          </ul>
+              <div className="purchase-list-total">
+                <strong>Total: ${menardsItems.reduce((s, i) => s + i.bestPrice, 0).toFixed(2)}</strong>
+              </div>
+            </div>
+          )}
         </div>
+
         <div className="purchase-list">
-          <h3 className="hd-color">Buy from Home Depot</h3>
-          <ul>
-            {analysis.items
-              .filter((i) => i.bestStore === 'homedepot')
-              .map((i) => (
-                <li key={i.id}>
-                  {i.name} &mdash; ${i.bestPrice.toFixed(2)}
-                </li>
+          <div className="purchase-list-header">
+            <h3 className="hd-color">Buy from Home Depot ({hdItems.length})</h3>
+            <button
+              className="btn btn-sm btn-secondary"
+              onClick={() => copyList('homedepot')}
+            >
+              {copyFeedback === 'homedepot' ? 'Copied!' : 'Copy List'}
+            </button>
+          </div>
+          {hdItems.length === 0 ? (
+            <p className="muted">No items assigned to Home Depot</p>
+          ) : (
+            <div className="purchase-items">
+              {hdItems.map((item) => (
+                <div key={item.id} className="purchase-item">
+                  <div className="purchase-item-info">
+                    <span className="purchase-item-name">{item.name}</span>
+                    <span className="purchase-item-price">${item.bestPrice.toFixed(2)}</span>
+                  </div>
+                  {item.hdUrl && (
+                    <a
+                      href={item.hdUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="purchase-item-link"
+                    >
+                      Open on Home Depot &rarr;
+                    </a>
+                  )}
+                </div>
               ))}
-          </ul>
+              <div className="purchase-list-total">
+                <strong>Total: ${hdItems.reduce((s, i) => s + i.bestPrice, 0).toFixed(2)}</strong>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
